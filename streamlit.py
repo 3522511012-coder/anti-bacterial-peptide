@@ -188,22 +188,20 @@ import joblib
 import pandas as pd
 import matplotlib.pyplot as plt
 
-model = joblib.load(r"neg_model_selected.pkl")
-scaler = joblib.load(r"neg_scaler_selected.pkl")
-selected_features = joblib.load(r"neg_selected_features.pkl")
+model = joblib.load("neg_model_selected.pkl")
+scaler = joblib.load("neg_scaler_selected.pkl")
+selected_features = joblib.load("neg_selected_features.pkl")
 
-model_P = joblib.load(r"abp_model.pkl")
-scaler_P = joblib.load(r"abp_scaler.pkl")
-selected_P=joblib.load(r"sel_feature.pkl")
-
-
-##-------------------------------------------------------------------------------------
+model_P = joblib.load("abp_model.pkl")
+scaler_P = joblib.load("abp_scaler.pkl")
+selected_P=joblib.load("sel_feature.pkl")
 
 
+######-------------------------------------------------------------------------------------
 
 # 1. Page Configuration
 st.set_page_config(
-    page_title='ANTI-BACTERIAL PEPTIDES ',
+    page_title='ANTI-BACTERIAL PEPTIDES PREDICTOR',
     layout="centered"
 )
 
@@ -211,67 +209,117 @@ st.set_page_config(
 # This creates the collapsible sidebar with the arrow button
 
 with st.sidebar:
-    st.header("About This Tool") # Removed the ###, st.header already makes it a header
-    st.write("""
-    This tool is designed to provide rapid identification of **Anti-Bacterial Peptides**.
-    By analyzing sequence patterns, the underlying model helps researchers screen potential
-    antimicrobial candidates efficiently. This is particularly useful in the early
-    stages of drug discovery and bioinformatics research.
-    """) # <--- Ensure this looks exactly like this
+    # 1. Branding / Logo (Optional)
+    st.markdown("### 🧬 ABP Predictor")
+    st.caption("Version 1.0.0")
+   
 
-    st.header("Home")
-    st.write("""
-    **Contact:**
-    * Hasya Jadhav : 3522511027@despu.edu.in
-    * Madhura Bhubihar : 3522511012@despu.edu.in
-    """)
+    # 2. About Section inside an Expander or Info box
+    with st.expander("📖 About This Tool"):
+        st.write("""
+        This tool provides rapid identification of **Anti-Bacterial Peptides**.
+        By analyzing sequence patterns, our models screen potential 
+        candidates for drug discovery.
+        """)
     
-    st.divider() # Optional: adds a visual line
-    st.caption(" Bioinformatics tool")
+    # 3. Features or Methodology (Adds credibility)
+    with st.expander("### 🛠 Methodology"):
+        st.write("""
+        - **Features:** AAC, DPC, ATC, CTC, RRI, DDR, PCP, SEP
+        - **Models:** Random Forest 
+        - **Targets:** Gram +/- Bacteria
+        """)
+        
+    def load_example(seq_text):
+        st.session_state['input_box_key'] = seq_text
 
+    with st.sidebar:
+        st.subheader("🧪 Quick Test Examples")
+        st.button("Load Known ABP", on_click=load_example, args=("KMKKALQY",))
+        st.button("Load Non-ABP", on_click=load_example, args=("GIGKFLHSAKKFGKAFVGEIMNS",))
+    
+    
+
+    st.divider()
+
+    # 4. Better Contact Section
+    st.markdown("### 📧 Support & Contact")
+    st.info("**Hasya Jadhav**\n\njadhavhasya1@gmail.com")
+    st.info("**Madhura Bhubihar**\n\nmadhurabhuibhar209@gmail.com")
 # 3. Main Page Title
-st.title("🧬 ANTI-BACTERIAL PEPTIDES")
+st.title("🧬 ANTI-BACTERIAL PEPTIDE PREDICTOR")
 
-seq_input = st.text_area("Enter Peptide Sequence")
+
+seq_input = st.text_area("Enter Peptide Sequence(s) (one per line)", 
+                        height=150,
+                        key="input_box_key" )
+sequences = [s.strip() for s in seq_input.split("\n") if s.strip()]
 valid = set("ACDEFGHIKLMNPQRSTVWY")
+invalid_seq = [s for s in sequences if not set(s).issubset(valid)]
 target=st.selectbox("Select bacterial type",["Gram positive","Gram negative"])
 perdict=st.button("predict")
-
+results=[]
 if perdict:
-    if not set(seq_input).issubset(valid):
-        st.error("Invalid sequence: contains non-amino acid character")
+    if invalid_seq:
+        st.error(f"Invalid sequence(s): {invalid_seq}")
+        st.stop()
     else:
-        st.success("Processing single sequence..")
+        st.success("Processing  sequences..")
         if target=="Gram positive":
-            features=ALL_FEATURES(seq_input)
-            df_1=pd.DataFrame([features], columns=features)
-            df_sel=df_1[selected_P]
-            scaled_p=scaler_P.transform(df_sel)
-            prob=model_P.predict_proba(scaled_p)[0][1]
-            st.write(prob)
-            if prob > 0.8:
-                st.success("🟢 Strongly Antibacterial")
-            elif prob > 0.6:
-                st.info("🟡 Moderately Antibacterial")
-            else:
-                st.error("🔴 Not Antibacterial")
-            st.metric(label="Prediction Confidence", value=f"{prob*100:.2f}%")
-            color = "green" if prob > 0.5 else "red"       
-        else:
-            features=ALL_FEATURES(seq_input)
-            df = pd.DataFrame([features], columns=features)
-            df_selected = df[selected_features]
-            scaled = scaler.transform(df_selected)
-            prob = model.predict_proba(scaled)[0][1]
-#------------------answer------------------------------------------------
-            if prob > 0.8:
-                st.success("🟢 Strongly Antibacterial")
-            elif prob > 0.6:
-                st.info("🟡 Moderately Antibacterial")
-            else:
-                st.error("🔴 Not Antibacterial")
-            st.metric(label="Prediction Confidence", value=f"{prob*100:.2f}%")
-            color = "green" if prob > 0.5 else "red"
             
-#-------------------figure explaining important features-------------------------
+            for seq in sequences:
+                features = ALL_FEATURES(seq)
+                df = pd.DataFrame([features], columns=features)
+                df_sel = df[selected_P]
+                scaled = scaler_P.transform(df_sel)
+                prob = model_P.predict_proba(scaled)[0][1]
+                label = "Antibacterial" if prob > 0.5 else "Non-antibacterial"
+                results.append({
+                "Sequence": seq,
+                "Prediction": label,
+                "Confidence (%)": round(prob * 100, 2)})
+                    
+        else:
+            for seq in sequences:
+                
+                features=ALL_FEATURES(seq)
+                df = pd.DataFrame([features], columns=features)
+                df_selected = df[selected_features]
+                scaled = scaler.transform(df_selected)
+                prob = model.predict_proba(scaled)[0][1]
+                label = "Antibacterial" if prob > 0.5 else "Non-antibacterial"
+#------------------answer------------------------------------------------
+                results.append({
+                "Sequence": seq,
+                "Prediction": label,
+                "Confidence (%)": round(prob * 100, 2)})
+                
+df_results = pd.DataFrame(results)
+
+
+st.subheader("Batch Results")
+def highlight(row):
+    if row["Prediction"] == "Antibacterial":
+        return ["background-color: rgba(63, 191, 63, 0.3)"] * len(row)
+    else:
+        return ["background-color: rgba(255, 99, 71, 0.3)"] * len(row)
+
+st.dataframe(df_results.style.apply(highlight, axis=1))
+
+csv = df_results.to_csv(index=False)
+
+st.download_button(
+    label="📥 Download Results",
+    data=csv,
+    file_name="batch_predictions.csv",
+    mime="text/csv"
+)
+
+# Add this below your table
+
+
+          
+
+            
+
          
